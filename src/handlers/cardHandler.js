@@ -1,6 +1,6 @@
 const gemini = require('../services/geminiService');
 const db = require('../services/dbService');
-const { formatError } = require('../utils/formatters');
+const { formatError, CATEGORY_ICONS } = require('../utils/formatters');
 
 const CARD_EXTRACT_PROMPT = `Extrae los datos de la tarjeta del mensaje del usuario.
 Responde SOLO con JSON válido:
@@ -30,7 +30,11 @@ Responde SOLO con JSON válido:
     "current_balance": <nuevo saldo o null si no lo menciona>,
     "credit_limit": <nuevo límite o null>,
     "cut_off_day": <nuevo día de corte o null>,
-    "payment_due_day": <nuevo día de pago o null>
+    "payment_due_day": <nuevo día de pago o null>,
+    "interest_rate": <nueva tasa o null>,
+    "name": "<nuevo nombre o null>",
+    "bank": "<nuevo banco o null>",
+    "last_four": "<nuevos últimos 4 dígitos o null>"
   }
 }
 
@@ -71,7 +75,7 @@ async function handleCardAdd(bot, msg) {
     );
   } catch (error) {
     console.error('Error en cardHandler (add):', error.message);
-    await bot.sendMessage(chatId, formatError('No pude registrar la tarjeta. Intenta algo como: "Mi tarjeta BBVA Oro, crédito, límite 50000, corte día 15, pago día 5"'));
+    await bot.sendMessage(chatId, formatError('No pude registrar la tarjeta. Intenta algo como:\n"Mi tarjeta BBVA Oro, crédito, límite 50000, corte día 15, pago día 5"'));
   }
 }
 
@@ -81,7 +85,7 @@ async function handleCardUpdate(bot, msg) {
 
   try {
     const cards = await db.runQuery(
-      'SELECT id, name, card_type, bank, current_balance FROM cards WHERE user_id = ? AND is_active = TRUE',
+      'SELECT id, name, card_type, bank, last_four, credit_limit, current_balance, cut_off_day, payment_due_day, interest_rate FROM cards WHERE user_id = ? AND is_active = TRUE',
       [userId]
     );
 
@@ -99,16 +103,17 @@ async function handleCardUpdate(bot, msg) {
     const updates = result.updates;
     const setClauses = [];
     const params = [];
+    const ALLOWED_FIELDS = ['current_balance', 'credit_limit', 'cut_off_day', 'payment_due_day', 'interest_rate', 'name', 'bank', 'last_four'];
 
     for (const [field, value] of Object.entries(updates)) {
-      if (value !== null && value !== undefined) {
+      if (value !== null && value !== undefined && ALLOWED_FIELDS.includes(field)) {
         setClauses.push(`${field} = ?`);
         params.push(value);
       }
     }
 
     if (setClauses.length === 0) {
-      return bot.sendMessage(chatId, '🤔 No detecté qué quieres actualizar. Dime el saldo, límite, día de corte o día de pago.');
+      return bot.sendMessage(chatId, '🤔 No detecté qué quieres actualizar. Puedo cambiar:\n- Saldo, límite, día de corte, día de pago, tasa de interés, nombre, banco o últimos 4 dígitos.');
     }
 
     params.push(result.card_id, userId);
@@ -117,17 +122,44 @@ async function handleCardUpdate(bot, msg) {
       params
     );
 
-    const card = cards.find(c => c.id === result.card_id);
-    await bot.sendMessage(chatId,
-      `✅ *Tarjeta actualizada*\n\n💳 ${card?.name || 'Tarjeta'}\n` +
-      Object.entries(updates).filter(([, v]) => v !== null).map(([k, v]) => {
-        const labels = { current_balance: '📊 Saldo', credit_limit: '💰 Límite', cut_off_day: '✂️ Corte', payment_due_day: '📅 Pago' };
-        const label = labels[k] || k;
-        const formatted = typeof v === 'number' && k !== 'cut_off_day' && k !== 'payment_due_day' ? `$${v.toLocaleString()}` : `día ${v}`;
-        return `${label}: ${formatted}`;
-      }).join('\n'),
-      { parse_mode: 'Markdown' }
+    // Obtener tarjeta actualizada para mostrar estado completo
+    const [updated] = await db.runQuery(
+      'SELECT * FROM cards WHERE id = ? AND user_id = ?',
+      [result.card_id, userId]
     );
+
+    if (!updated) {
+      return bot.sendMessage(chatId, '✅ Tarjeta actualizada.');
+    }
+
+    const balance = Number(updated.current_balance || 0);
+    const limit = Number(updated.credit_limit || 0);
+    const available = limit - balance;
+    const usage = limit > 0 ? Math.round(balance / limit * 100) : 0;
+    const usageBar = limit > 0 ? generateUsageBar(usage) : '';
+
+    let response = `✅ *Tarjeta actualizada*\n\n`;
+    response += `💳 *${updated.name}*${updated.bank ? ` (${updated.bank})` : ''}\n`;
+    if (updated.last_four) response += `🔢 Terminación: ${updated.last_four}\n`;
+    response += `📊 Saldo: $${balance.toLocaleString()}\n`;
+
+    if (updated.card_type === 'credito' && limit > 0) {
+      response += `💰 Límite: $${limit.toLocaleString()}\n`;
+      response += `✅ Disponible: $${available.toLocaleString()}\n`;
+      response += `${usageBar} ${usage}% utilizado\n`;
+
+      if (usage > 80) {
+        response += `\n⚠️ *Alerta:* Tu utilización está por encima del 80%. Esto puede afectar tu historial crediticio.`;
+      } else if (usage > 50) {
+        response += `\n💡 Tu utilización está moderada. Lo ideal es mantenerla bajo 30%.`;
+      }
+    }
+
+    if (updated.cut_off_day) response += `\n✂️ Corte: día ${updated.cut_off_day}`;
+    if (updated.payment_due_day) response += `\n📅 Pago: día ${updated.payment_due_day}`;
+    if (updated.interest_rate) response += `\n📈 Tasa: ${updated.interest_rate}% anual`;
+
+    await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error en cardHandler (update):', error.message);
     await bot.sendMessage(chatId, formatError('No pude actualizar la tarjeta.'));
@@ -148,6 +180,16 @@ async function handleCardList(bot, msg) {
       return bot.sendMessage(chatId, '📭 No tienes tarjetas registradas.\n\nEnvía algo como:\n_"Agregar tarjeta BBVA Oro, crédito, límite 50000, corte día 15, pago día 5"_', { parse_mode: 'Markdown' });
     }
 
+    // Obtener gastos del mes por tarjeta
+    const cardExpenses = await db.runQuery(
+      `SELECT card_id, category, SUM(amount) as total, COUNT(*) as count
+       FROM expenses
+       WHERE user_id = ? AND card_id IS NOT NULL
+       AND MONTH(expense_date) = MONTH(CURDATE()) AND YEAR(expense_date) = YEAR(CURDATE())
+       GROUP BY card_id, category ORDER BY card_id, total DESC`,
+      [userId]
+    );
+
     let response = '💳 *Mis Tarjetas*\n\n';
     let totalDebt = 0;
     let totalLimit = 0;
@@ -162,21 +204,38 @@ async function handleCardList(bot, msg) {
       response += `${icon} *${c.name}*${c.bank ? ` (${c.bank})` : ''}\n`;
       if (c.last_four) response += `   🔢 *${c.last_four}\n`;
       response += `   📊 Saldo: $${balance.toLocaleString()}\n`;
+
       if (c.card_type === 'credito' && limit > 0) {
         const available = limit - balance;
         const usage = Math.round(balance / limit * 100);
-        response += `   💰 Límite: $${limit.toLocaleString()} | Disponible: $${available.toLocaleString()} (${usage}% usado)\n`;
+        response += `   💰 Límite: $${limit.toLocaleString()} | Disponible: $${available.toLocaleString()}\n`;
+        response += `   ${generateUsageBar(usage)} ${usage}%\n`;
       }
+
       if (c.cut_off_day) response += `   ✂️ Corte: día ${c.cut_off_day}`;
       if (c.payment_due_day) response += ` | 📅 Pago: día ${c.payment_due_day}`;
-      response += '\n\n';
+      response += '\n';
+
+      // Gastos del mes en esta tarjeta
+      const thisCardExpenses = cardExpenses.filter(e => e.card_id === c.id);
+      if (thisCardExpenses.length > 0) {
+        const cardMonthTotal = thisCardExpenses.reduce((sum, e) => sum + Number(e.total), 0);
+        response += `   📆 Este mes: $${cardMonthTotal.toLocaleString()} en ${thisCardExpenses.reduce((s, e) => s + e.count, 0)} gastos\n`;
+        for (const e of thisCardExpenses.slice(0, 3)) {
+          const catIcon = CATEGORY_ICONS[e.category] || '•';
+          response += `      ${catIcon} ${e.category}: $${Number(e.total).toLocaleString()} (${e.count})\n`;
+        }
+      }
+
+      response += '\n';
     }
 
     if (totalLimit > 0) {
       const totalUsage = Math.round(totalDebt / totalLimit * 100);
       response += `───────────────\n`;
       response += `💰 *Deuda total:* $${totalDebt.toLocaleString()}\n`;
-      response += `📊 *Utilización:* ${totalUsage}% de $${totalLimit.toLocaleString()}`;
+      response += `📊 *Utilización global:* ${generateUsageBar(totalUsage)} ${totalUsage}%\n`;
+      response += `✅ *Disponible total:* $${(totalLimit - totalDebt).toLocaleString()}`;
     }
 
     await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
@@ -184,6 +243,13 @@ async function handleCardList(bot, msg) {
     console.error('Error en cardHandler (list):', error.message);
     await bot.sendMessage(chatId, formatError('No pude obtener las tarjetas.'));
   }
+}
+
+function generateUsageBar(percent) {
+  const filled = Math.round(percent / 10);
+  const empty = 10 - filled;
+  const color = percent > 80 ? '🔴' : percent > 50 ? '🟡' : '🟢';
+  return color + ' ' + '▓'.repeat(filled) + '░'.repeat(empty);
 }
 
 module.exports = { handleCardAdd, handleCardUpdate, handleCardList };

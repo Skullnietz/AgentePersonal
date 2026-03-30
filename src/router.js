@@ -7,6 +7,7 @@ const { handleDocument } = require('./handlers/documentHandler');
 const { handleCardAdd, handleCardUpdate, handleCardList } = require('./handlers/cardHandler');
 const { handleLoanAdd, handleLoanPayment, handleLoanList } = require('./handlers/loanHandler');
 const { handleRecurringAdd, handleRecurringList } = require('./handlers/recurringHandler');
+const { handleExpenseList, handleExpenseDelete } = require('./handlers/expenseManager');
 const { handleQuery } = require('./services/queryService');
 const { formatGreeting, formatError } = require('./utils/formatters');
 
@@ -75,6 +76,12 @@ async function routeMessage(bot, msg) {
 
         case 'recurring_list':
           return handleRecurringList(bot, msg);
+
+        case 'expense_delete':
+          return handleExpenseDelete(bot, msg);
+
+        case 'expense_list':
+          return handleExpenseList(bot, msg);
 
         case 'greeting':
           return bot.sendMessage(chatId, formatGreeting(), { parse_mode: 'Markdown' });

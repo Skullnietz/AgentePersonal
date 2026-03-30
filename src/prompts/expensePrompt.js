@@ -67,25 +67,30 @@ Intenciones posibles:
 - "expense": el usuario está registrando un gasto (menciona dinero, pagos, compras que hizo).
 - "query": el usuario pregunta sobre sus gastos, quiere un resumen, análisis, recomendación, o info de sus finanzas.
 - "card_add": el usuario quiere agregar/registrar una tarjeta nueva.
-- "card_update": el usuario quiere actualizar saldo o datos de una tarjeta existente.
+- "card_update": el usuario quiere actualizar saldo, fechas u otros datos de una tarjeta existente.
 - "card_list": el usuario quiere ver sus tarjetas.
 - "loan_add": el usuario quiere registrar un préstamo o deuda nueva.
 - "loan_payment": el usuario quiere registrar un pago a un préstamo.
 - "loan_list": el usuario quiere ver sus préstamos.
 - "recurring_add": el usuario quiere agregar un gasto fijo/recurrente mensual.
 - "recurring_list": el usuario quiere ver sus gastos fijos.
+- "expense_delete": el usuario quiere borrar, eliminar, quitar o cancelar un gasto que registró (o dice "me equivoqué").
+- "expense_list": el usuario quiere ver sus últimos gastos registrados para revisarlos.
 - "greeting": saludo simple (hola, buenos días, etc).
 - "unknown": no se puede clasificar.
 
 Reglas:
 - Si el usuario dice "agregar tarjeta", "nueva tarjeta", "registrar mi tarjeta" → card_add
 - Si el usuario dice "actualizar saldo", "mi tarjeta tiene X", "debo X en mi tarjeta" → card_update
-- Si el usuario dice "mis tarjetas", "ver tarjetas" → card_list
+- Si el usuario dice "cambiar corte", "cambiar fecha de pago", "editar mi tarjeta" → card_update
+- Si el usuario dice "mis tarjetas", "ver tarjetas", "cuánto tengo disponible" → card_list
 - Si el usuario dice "tengo un préstamo", "debo X a Y", "saqué un crédito" → loan_add
 - Si el usuario dice "pagué X de mi préstamo", "abono al crédito" → loan_payment
 - Si el usuario dice "mis préstamos", "mis deudas" → loan_list
 - Si el usuario dice "pago fijo", "gasto mensual de", "cada mes pago" → recurring_add
 - Si el usuario dice "mis gastos fijos", "pagos recurrentes" → recurring_list
+- Si el usuario dice "borra", "elimina", "quita", "me equivoqué", "cancela el gasto", "borra el último" → expense_delete
+- Si el usuario dice "mis últimos gastos", "ver mis gastos", "historial", "qué he registrado" → expense_list
 - Preguntas como "cuánto llevo", "resumen", "analiza mis gastos", "recomendaciones", "qué puedo hacer", "en qué gasto más", "comparación" → query
 - Si menciona que GASTÓ + tarjeta → expense (no card_update)`;
 

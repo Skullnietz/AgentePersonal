@@ -64,6 +64,11 @@ async function createBot() {
       `🔄 *Gastos fijos:*\n` +
       `- _"gasto fijo: Netflix $220, día 15"_\n` +
       `- _"mis gastos fijos"_\n\n` +
+      `🗑️ *Editar/Borrar gastos:*\n` +
+      `- _"ver mis últimos gastos"_\n` +
+      `- _"borra el último gasto"_\n` +
+      `- _"borra el #5"_ (por ID)\n` +
+      `- _"me equivoqué, borra el de uber"_\n\n` +
       `*Comandos:*\n` +
       `/start - Iniciar bot\n` +
       `/help - Ver esta ayuda`;
