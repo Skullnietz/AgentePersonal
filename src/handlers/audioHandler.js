@@ -14,11 +14,17 @@ async function handleAudio(bot, msg) {
 
     const voice = msg.voice;
     const fileLink = await bot.getFileLink(voice.file_id);
-
     const audioBuffer = await downloadFile(fileLink);
 
-    const audioPrompt = expensePrompt + '\n\nEl usuario envió un mensaje de voz en español. Transcribe y analiza el audio para extraer la información del gasto.';
-    const result = await gemini.analyzeAudio(audioPrompt, audioBuffer, 'audio/ogg');
+    // Inyectar tarjetas del usuario
+    const cards = await db.runQuery(
+      'SELECT id, name, card_type, bank, last_four FROM cards WHERE user_id = ? AND is_active = TRUE',
+      [userId]
+    );
+    const prompt = expensePrompt.replace('{CARDS}', cards.length > 0 ? JSON.stringify(cards) : 'Sin tarjetas registradas')
+      + '\n\nEl usuario envió un mensaje de voz en español. Transcribe y analiza el audio para extraer la información del gasto.';
+
+    const result = await gemini.analyzeAudio(prompt, audioBuffer, 'audio/ogg');
     const validation = validateExpense(result);
 
     if (!validation.valid) {
@@ -39,9 +45,16 @@ async function handleAudio(bot, msg) {
       inputType: 'audio',
       rawInput: `[audio: ${voice.file_id}]`,
       confidence: data.confidence,
+      cardId: data.card_id || null,
     });
 
-    await bot.sendMessage(chatId, formatExpenseConfirmation(data), { parse_mode: 'Markdown' });
+    let cardName = null;
+    if (data.card_id) {
+      const card = cards.find(c => c.id === data.card_id);
+      cardName = card ? card.name : null;
+    }
+
+    await bot.sendMessage(chatId, formatExpenseConfirmation(data, cardName), { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error en audioHandler:', error.message);
     await bot.sendMessage(chatId, formatError('No pude procesar tu mensaje de voz. Intenta de nuevo.'));

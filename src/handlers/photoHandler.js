@@ -1,9 +1,9 @@
 const https = require('https');
 const gemini = require('../services/geminiService');
 const db = require('../services/dbService');
-const { expensePrompt } = require('../prompts/expensePrompt');
-const { validateExpense } = require('../utils/validators');
-const { formatExpenseConfirmation, formatError } = require('../utils/formatters');
+const { multiExpensePrompt } = require('../prompts/expensePrompt');
+const { validateExpenses } = require('../utils/validators');
+const { formatMultipleExpensesConfirmation, formatError } = require('../utils/formatters');
 
 async function handlePhoto(bot, msg) {
   const chatId = msg.chat.id;
@@ -12,25 +12,30 @@ async function handlePhoto(bot, msg) {
   try {
     await bot.sendMessage(chatId, '🔍 Analizando tu ticket...');
 
-    // Get the highest resolution photo
     const photo = msg.photo[msg.photo.length - 1];
     const fileLink = await bot.getFileLink(photo.file_id);
-
     const imageBuffer = await downloadFile(fileLink);
     const mimeType = fileLink.endsWith('.png') ? 'image/png' : 'image/jpeg';
 
-    const photoPrompt = expensePrompt + '\n\nAnaliza la imagen del ticket/recibo adjunto. Extrae el total, comercio y fecha si son legibles.';
-    const result = await gemini.analyzeImage(photoPrompt, imageBuffer, mimeType);
-    const validation = validateExpense(result);
+    // Inyectar tarjetas del usuario
+    const cards = await db.runQuery(
+      'SELECT id, name, card_type, bank, last_four FROM cards WHERE user_id = ? AND is_active = TRUE',
+      [userId]
+    );
+    const prompt = multiExpensePrompt.replace('{CARDS}', cards.length > 0 ? JSON.stringify(cards) : 'Sin tarjetas registradas')
+      + '\n\nAnaliza la imagen adjunta. Si es un ticket, extrae el total. Si hay varios movimientos, extrae cada uno.';
+
+    const result = await gemini.analyzeImage(prompt, imageBuffer, mimeType);
+    const validation = validateExpenses(result);
 
     if (!validation.valid) {
       await bot.sendMessage(chatId, formatError(validation.error));
       return;
     }
 
-    const data = validation.data;
+    const expenses = validation.data;
 
-    await db.saveExpense({
+    await db.saveExpenses(expenses.map((data) => ({
       userId,
       amount: data.amount,
       currency: data.currency,
@@ -41,9 +46,10 @@ async function handlePhoto(bot, msg) {
       inputType: 'photo',
       rawInput: `[foto: ${photo.file_id}]`,
       confidence: data.confidence,
-    });
+      cardId: data.card_id || null,
+    })));
 
-    await bot.sendMessage(chatId, formatExpenseConfirmation(data), { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, formatMultipleExpensesConfirmation(expenses, cards), { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error en photoHandler:', error.message);
     await bot.sendMessage(chatId, formatError('No pude analizar la imagen. Asegúrate de que el ticket sea legible.'));

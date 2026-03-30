@@ -17,12 +17,50 @@ function getPool() {
   return pool;
 }
 
-async function saveExpense({ userId, amount, currency, category, description, merchant, expenseDate, inputType, rawInput, confidence }) {
-  const sql = `INSERT INTO expenses (user_id, amount, currency, category, description, merchant, expense_date, input_type, raw_input, confidence)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  const params = [userId, amount, currency || 'MXN', category, description, merchant, expenseDate, inputType, rawInput, confidence];
+async function saveExpense({ userId, amount, currency, category, description, merchant, expenseDate, inputType, rawInput, confidence, cardId }) {
+  const sql = `INSERT INTO expenses (user_id, amount, currency, category, description, merchant, expense_date, input_type, raw_input, confidence, card_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const params = [userId, amount, currency || 'MXN', category, description, merchant, expenseDate, inputType, rawInput, confidence, cardId || null];
   const [result] = await getPool().execute(sql, params);
   return result.insertId;
+}
+
+async function saveExpenses(expenses) {
+  const conn = await getPool().getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const insertedIds = [];
+    const sql = `INSERT INTO expenses (user_id, amount, currency, category, description, merchant, expense_date, input_type, raw_input, confidence, card_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    for (const expense of expenses) {
+      const params = [
+        expense.userId,
+        expense.amount,
+        expense.currency || 'MXN',
+        expense.category,
+        expense.description,
+        expense.merchant,
+        expense.expenseDate,
+        expense.inputType,
+        expense.rawInput,
+        expense.confidence,
+        expense.cardId || null,
+      ];
+      const [result] = await conn.execute(sql, params);
+      insertedIds.push(result.insertId);
+    }
+
+    await conn.commit();
+    return insertedIds;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
 }
 
 async function runQuery(sql, params = []) {
@@ -37,4 +75,4 @@ async function testConnection() {
   return true;
 }
 
-module.exports = { saveExpense, runQuery, testConnection };
+module.exports = { saveExpense, saveExpenses, runQuery, testConnection };

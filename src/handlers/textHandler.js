@@ -10,7 +10,14 @@ async function handleText(bot, msg) {
   const text = msg.text;
 
   try {
-    const result = await gemini.analyzeText(expensePrompt, text);
+    // Obtener tarjetas del usuario para inyectar en el prompt
+    const cards = await db.runQuery(
+      'SELECT id, name, card_type, bank, last_four FROM cards WHERE user_id = ? AND is_active = TRUE',
+      [userId]
+    );
+    const prompt = expensePrompt.replace('{CARDS}', cards.length > 0 ? JSON.stringify(cards) : 'Sin tarjetas registradas');
+
+    const result = await gemini.analyzeText(prompt, text);
     const validation = validateExpense(result);
 
     if (!validation.valid) {
@@ -31,9 +38,17 @@ async function handleText(bot, msg) {
       inputType: 'text',
       rawInput: text,
       confidence: data.confidence,
+      cardId: data.card_id || null,
     });
 
-    await bot.sendMessage(chatId, formatExpenseConfirmation(data), { parse_mode: 'Markdown' });
+    // Buscar nombre de tarjeta para mostrarlo
+    let cardName = null;
+    if (data.card_id) {
+      const card = cards.find(c => c.id === data.card_id);
+      cardName = card ? card.name : null;
+    }
+
+    await bot.sendMessage(chatId, formatExpenseConfirmation(data, cardName), { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error en textHandler:', error.message);
     await bot.sendMessage(chatId, formatError('No pude procesar tu mensaje. Intenta de nuevo.'));

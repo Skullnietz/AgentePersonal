@@ -17,7 +17,7 @@ async function main() {
   }
 
   // Start bot
-  const bot = createBot();
+  const bot = await createBot();
   console.log('✅ Bot de Telegram iniciado (polling)');
   console.log('📊 Módulo activo: Finanzas');
   console.log('---');

@@ -31,10 +31,43 @@ function validateExpense(data) {
   return { valid: true, data };
 }
 
+function validateExpenses(payload) {
+  if (!payload || payload.type === 'error') {
+    return { valid: false, error: payload?.message || 'No se pudieron procesar los gastos.' };
+  }
+
+  const expenses = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.expenses)
+      ? payload.expenses
+      : [payload];
+
+  if (expenses.length === 0) {
+    return { valid: false, error: 'No pude identificar gastos validos en la imagen o documento.' };
+  }
+
+  const normalized = [];
+
+  for (const expense of expenses) {
+    const validation = validateExpense(expense);
+    if (!validation.valid) {
+      continue;
+    }
+
+    normalized.push(validation.data);
+  }
+
+  if (normalized.length === 0) {
+    return { valid: false, error: 'No pude identificar gastos validos en la imagen o documento.' };
+  }
+
+  return { valid: true, data: normalized };
+}
+
 function isAllowedUser(userId) {
   const allowed = process.env.ALLOWED_USER_IDS;
   if (!allowed) return true;
   return allowed.split(',').map(id => id.trim()).includes(String(userId));
 }
 
-module.exports = { validateExpense, isAllowedUser, VALID_CATEGORIES };
+module.exports = { validateExpense, validateExpenses, isAllowedUser, VALID_CATEGORIES };
