@@ -41,12 +41,16 @@ async function createBot() {
   // /help command
   bot.onText(/\/help/, (msg) => {
     if (!isAllowedUser(msg.from.id)) return;
-    const help = `📖 *Ayuda de FinBot*\n\n` +
+    const help = `📖 *Ayuda de tu Agente Personal*\n\n` +
       `💰 *Registrar gastos:*\n` +
       `- _"gasté 200 en uber"_\n` +
       `- _"gasté 500 en comida con mi tarjeta BBVA"_\n` +
       `- Envía foto de ticket o PDF\n` +
       `- Envía nota de voz\n\n` +
+      `🎤 *Audio general:*\n` +
+      `- Puedes enviarme notas de voz para gastos, soporte, consultas o exportaciones\n` +
+      `- Ejemplo: _"registra soporte de Jose Moreno en Coeli Admin"_\n` +
+      `- Ejemplo: _"genera bitácora de soporte 2026 por Telegram"_\n\n` +
       `📊 *Consultar y analizar:*\n` +
       `- _"¿cuánto llevo este mes?"_\n` +
       `- _"resumen por categoría"_\n` +
@@ -69,6 +73,13 @@ async function createBot() {
       `- _"borra el último gasto"_\n` +
       `- _"borra el #5"_ (por ID)\n` +
       `- _"me equivoqué, borra el de uber"_\n\n` +
+      `💼 *Vida laboral - Bitácora de soporte:*\n` +
+      `- _"registra soporte: Jose Moreno no puede ingresar a Coeli Admin..."_\n` +
+      `- _"haz bitácora con esta conversación"_\n` +
+      `- _"mis últimos soportes"_\n` +
+      `- _"actualiza soporte 1001 como realizado, observaciones: se actualizó el sistema"_\n` +
+      `- _"genera bitácora de soporte 2026 por Telegram"_\n` +
+      `- _"manda bitácora de soporte 2026 por correo"_\n\n` +
       `*Comandos:*\n` +
       `/start - Iniciar bot\n` +
       `/help - Ver esta ayuda`;

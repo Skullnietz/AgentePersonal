@@ -72,14 +72,16 @@ function formatGreeting() {
   else if (hour < 18) greeting = 'Buenas tardes';
   else greeting = 'Buenas noches';
 
-  return `${greeting} 👋\n\nSoy tu asistente financiero. Puedo ayudarte con:\n\n` +
+  return `${greeting} 👋\n\nSoy tu Agente Personal. Puedo ayudarte con finanzas, vida laboral y tareas repetitivas.\n\n` +
     `💬 Registrar gastos: _"gasté 200 en uber"_\n` +
     `📸 Analizar tickets y PDFs\n` +
-    `🎤 Notas de voz\n` +
+    `🎤 Notas de voz para gastos, soporte y consultas\n` +
     `📊 Análisis: _"resumen del mes"_, _"recomendaciones"_\n` +
     `💳 Tarjetas: _"agregar tarjeta"_, _"mis tarjetas"_\n` +
     `📋 Préstamos: _"tengo un préstamo..."_, _"mis deudas"_\n` +
-    `🔄 Gastos fijos: _"gasto fijo Netflix $220"_\n\n` +
+    `🔄 Gastos fijos: _"gasto fijo Netflix $220"_\n` +
+    `🧾 Bitácora de soporte: _"registra soporte de Jose Moreno..."_\n` +
+    `💼 Vida laboral: tareas, seguimiento y registros de soporte\n\n` +
     `Escribe /help para ver todos los comandos.`;
 }
 

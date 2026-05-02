@@ -8,6 +8,7 @@ const { handleCardAdd, handleCardUpdate, handleCardList } = require('./handlers/
 const { handleLoanAdd, handleLoanPayment, handleLoanList } = require('./handlers/loanHandler');
 const { handleRecurringAdd, handleRecurringList } = require('./handlers/recurringHandler');
 const { handleExpenseList, handleExpenseDelete } = require('./handlers/expenseManager');
+const { handleSupportLogCreate, handleSupportLogList, handleSupportLogUpdate, handleSupportLogExport } = require('./handlers/supportLogHandler');
 const { handleQuery } = require('./services/queryService');
 const { formatGreeting, formatError } = require('./utils/formatters');
 
@@ -19,9 +20,9 @@ async function routeMessage(bot, msg) {
     return handlePhoto(bot, msg);
   }
 
-  // Voice message
-  if (msg.voice) {
-    return handleAudio(bot, msg);
+  // Voice/audio message
+  if (msg.voice || msg.audio) {
+    return handleAudio(bot, msg, (transcribedMsg) => routeTextMessage(bot, transcribedMsg));
   }
 
   // Document (PDF, images)
@@ -35,16 +36,23 @@ async function routeMessage(bot, msg) {
 
   // Text message
   if (msg.text) {
-    if (msg.text.startsWith('/')) return;
+    return routeTextMessage(bot, msg);
+  }
+}
 
-    try {
-      // Classify intent
-      const classification = await gemini.analyzeText(intentPrompt, msg.text);
-      const intent = classification.intent;
+async function routeTextMessage(bot, msg) {
+  const chatId = msg.chat.id;
 
-      console.log(`📨 "${msg.text.substring(0, 50)}" → ${intent}`);
+  if (!msg.text || msg.text.startsWith('/')) return;
 
-      switch (intent) {
+  try {
+    // Classify intent
+    const classification = await gemini.analyzeText(intentPrompt, msg.text);
+    const intent = classification.intent;
+
+    console.log(`📨 "${msg.text.substring(0, 50)}" → ${intent}`);
+
+    switch (intent) {
         case 'expense':
           return handleText(bot, msg);
 
@@ -83,17 +91,28 @@ async function routeMessage(bot, msg) {
         case 'expense_list':
           return handleExpenseList(bot, msg);
 
+        case 'support_log_create':
+          return handleSupportLogCreate(bot, msg);
+
+        case 'support_log_list':
+          return handleSupportLogList(bot, msg);
+
+        case 'support_log_update':
+          return handleSupportLogUpdate(bot, msg);
+
+        case 'support_log_export':
+          return handleSupportLogExport(bot, msg);
+
         case 'greeting':
           return bot.sendMessage(chatId, formatGreeting(), { parse_mode: 'Markdown' });
 
         default:
-          return bot.sendMessage(chatId, '🤔 No entendí tu mensaje. Puedes registrar un gasto, preguntarme sobre tus finanzas, o gestionar tarjetas y préstamos.');
-      }
-    } catch (error) {
-      console.error('❌ Error en router:', error.message);
-      console.error('   Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
-      return bot.sendMessage(chatId, formatError('Ocurrió un error procesando tu mensaje.'));
+          return bot.sendMessage(chatId, '🤔 No entendí tu mensaje. Puedes registrar gastos, consultar finanzas, gestionar tarjetas/préstamos o crear bitácoras de soporte laboral.');
     }
+  } catch (error) {
+    console.error('❌ Error en router:', error.message);
+    console.error('   Stack:', error.stack?.split('\n').slice(0, 3).join('\n'));
+    return bot.sendMessage(chatId, formatError('Ocurrió un error procesando tu mensaje.'));
   }
 }
 

@@ -8,7 +8,7 @@ const FALLBACK_MODELS = [
   'gemini-2.5-flash',
   'gemini-1.5-flash',
 ].filter((modelName, index, arr) => arr.indexOf(modelName) === index);
-const TEXT_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS || 220);
+const TEXT_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS || 500);
 const MULTIMODAL_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS_MULTIMODAL || 700);
 const TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE || 0.1);
 
@@ -139,6 +139,27 @@ async function analyzeAudio(prompt, audioBuffer, mimeType) {
   }
 }
 
+async function transcribeAudio(audioBuffer, mimeType, glossary = []) {
+  const glossaryText = glossary.length > 0
+    ? `\n\nGlosario de terminos frecuentes del usuario:\n${glossary.map((term) => `- ${term}`).join('\n')}`
+    : '';
+
+  return runGeminiAndParse([
+    {
+      text: `Transcribe el audio del usuario en espanol de Mexico.\n\nResponde SOLO con JSON valido:\n{\n  "type": "transcription",\n  "transcript": "texto transcrito limpio",\n  "confidence": 0.0,\n  "needs_confirmation": false\n}\n\nReglas:\n- Mantén nombres propios, sistemas, equipos, ubicaciones y montos.\n- Corrige errores obvios de transcripcion sin cambiar la intención.\n- Si el audio es confuso, incompleto o hay palabras clave dudosas, usa needs_confirmation true.\n- No ejecutes acciones; solo transcribe.\n- No agregues explicaciones.${glossaryText}`,
+    },
+    {
+      inlineData: {
+        data: audioBuffer.toString('base64'),
+        mimeType: mimeType || 'audio/ogg',
+      },
+    },
+  ], {
+    maxOutputTokens: Number(process.env.GEMINI_TRANSCRIPTION_MAX_OUTPUT_TOKENS || 350),
+    retryOnInvalidJson: true,
+  });
+}
+
 async function analyzeDocument(prompt, docBuffer, mimeType) {
   return runGeminiAndParse([
     { text: prompt },
@@ -167,4 +188,4 @@ function extractJSON(text) {
   return JSON.parse(cleaned);
 }
 
-module.exports = { analyzeText, analyzeImage, analyzeAudio, analyzeDocument };
+module.exports = { analyzeText, analyzeImage, analyzeAudio, analyzeDocument, transcribeAudio };
